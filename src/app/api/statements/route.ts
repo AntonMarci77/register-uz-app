@@ -50,14 +50,14 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
     const offset = (page - 1) * limit;
 
-    // Filters
+    // Filters (accept both frontend and DB-style parameter names)
     const idUJ = searchParams.get("idUJ") ? parseInt(searchParams.get("idUJ")!, 10) : undefined;
-    const typ = searchParams.get("typ") || undefined;
-    const konsolidovanaParam = searchParams.get("konsolidovana");
+    const typ = searchParams.get("statement_type") || searchParams.get("typ") || undefined;
+    const konsolidovanaParam = searchParams.get("consolidated") || searchParams.get("konsolidovana");
     const konsolidovana =
       konsolidovanaParam !== null ? konsolidovanaParam.toLowerCase() === "true" : undefined;
-    const obdobieOd = searchParams.get("obdobieOd") || undefined;
-    const obdobieDo = searchParams.get("obdobieDo") || undefined;
+    const obdobieOd = searchParams.get("period_from") || searchParams.get("obdobieOd") || undefined;
+    const obdobieDo = searchParams.get("period_to") || searchParams.get("obdobieDo") || undefined;
     const templateId = searchParams.get("template_id") ? parseInt(searchParams.get("template_id")!, 10) : undefined;
 
     // Sorting
@@ -91,14 +91,17 @@ export async function GET(request: NextRequest) {
     }
 
     if (obdobieOd) {
+      // Frontend sends year (e.g. 2009), convert to date
+      const isYear = /^\d{4}$/.test(obdobieOd);
       whereClauses.push(`fs."obdobieOd" >= $${paramIndex}`);
-      params.push(obdobieOd);
+      params.push(isYear ? `${obdobieOd}-01-01` : obdobieOd);
       paramIndex++;
     }
 
     if (obdobieDo) {
+      const isYear = /^\d{4}$/.test(obdobieDo);
       whereClauses.push(`fs."obdobieDo" <= $${paramIndex}`);
-      params.push(obdobieDo);
+      params.push(isYear ? `${obdobieDo}-12-31` : obdobieDo);
       paramIndex++;
     }
 
@@ -155,39 +158,31 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.ceil(total / limit);
 
-    // Transform response
+    // Transform response to match frontend Statement type
     const data = statements.map((stmt) => ({
-      id: stmt.id,
-      obdobieOd: stmt.obdobieOd,
-      obdobieDo: stmt.obdobieDo,
-      datumPodania: stmt.datumPodania,
-      datumZostavenia: stmt.datumZostavenia,
-      datumSchvalenia: stmt.datumSchvalenia,
-      typ: stmt.typ,
-      konsolidovana: stmt.konsolidovana,
-      konsolidovanaUstredna: stmt.konsolidovanaUstredna,
-      suhrnnaVerejnaSprava: stmt.suhrnnaVerejnaSprava,
-      datumPoslednejUpravy: stmt.datumPoslednejUpravy,
-      idUJ: stmt.idUJ,
-      entity: {
-        id: stmt.entity_id,
-        nazovUJ: stmt.entity_nazovUJ,
-        ico: stmt.entity_ico,
-      },
+      id: String(stmt.id),
+      entity_id: String(stmt.entity_id || stmt.idUJ),
+      entity_name: stmt.entity_nazovUJ || "",
+      statement_type: stmt.typ || "",
+      period_from: stmt.obdobieOd,
+      period_to: stmt.obdobieDo,
+      consolidated: stmt.konsolidovana,
+      filing_date: stmt.datumPodania,
+      total_assets: null as number | null,
+      total_liabilities: null as number | null,
+      total_equity: null as number | null,
+      net_income: null as number | null,
+      url: "",
       pocetVykazov: stmt.pocetVykazov,
     }));
 
     return NextResponse.json(
       {
         data,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1,
-        },
+        total,
+        page,
+        limit,
+        pages: totalPages,
       },
       { status: 200 }
     );

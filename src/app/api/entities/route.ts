@@ -1,27 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryRows, queryCount, buildWhere } from "@/lib/db-raw";
+import { queryRows, queryCount, buildWhere, getNazovSK } from "@/lib/db-raw";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET /api/entities - Get accounting entities with filtering, searching, and pagination
  *
- * Query Parameters:
- * - page: number (default: 1) - Page number for pagination
- * - limit: number (default: 20, max: 100) - Items per page
- * - ico: string - Filter by IČO (company registration number)
- * - nazov: string - Search by entity name (case-insensitive partial match)
- * - kraj: string - Filter by region code
- * - okres: string - Filter by district code
- * - pravnaForma: string - Filter by legal form code
- * - skNace: string - Filter by SK NACE classification code
- * - velkostOrganizacie: string - Filter by organization size code
- * - sortBy: string (default: "nazovUJ") - Field to sort by (nazovUJ, ico, datumPoslednejUpravy)
- * - sortDir: "asc" | "desc" (default: "asc") - Sort direction
+ * Query Parameters (accepts both frontend and DB-style names):
+ * - page, limit, sortBy, sortDir
+ * - search/nazov - Search by entity name
+ * - region/kraj - Filter by region code
+ * - district/okres - Filter by district code
+ * - legal_form/pravnaForma - Filter by legal form code
+ * - nace_code/skNace - Filter by SK NACE code
+ * - size/velkostOrganizacie - Filter by organization size code
+ * - ico - Filter by IČO
  */
 
 type SortField = "nazovUJ" | "ico" | "datumPoslednejUpravy" | "datumZalozenia";
-type SortDirection = "asc" | "desc";
 
 interface EntityResult {
   id: string;
@@ -35,15 +31,15 @@ interface EntityResult {
   konsolidovana: boolean;
   datumPoslednejUpravy: Date;
   pravnaForma_kod: string | null;
-  pravnaForma_nazov: string | null;
+  pravnaForma_nazov: any;
   skNace_kod: string | null;
-  skNace_nazov: string | null;
+  skNace_nazov: any;
   velkostOrganizacie_kod: string | null;
-  velkostOrganizacie_nazov: string | null;
+  velkostOrganizacie_nazov: any;
   kraj_kod: string | null;
-  kraj_nazov: string | null;
+  kraj_nazov: any;
   okres_kod: string | null;
-  okres_nazov: string | null;
+  okres_nazov: any;
 }
 
 export async function GET(request: NextRequest) {
@@ -55,14 +51,14 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
     const skip = (page - 1) * limit;
 
-    // Filters
+    // Filters (accept both frontend and DB-style parameter names)
     const ico = searchParams.get("ico") || undefined;
-    const nazov = searchParams.get("nazov") || undefined;
-    const kraj = searchParams.get("kraj") || undefined;
-    const okres = searchParams.get("okres") || undefined;
-    const pravnaForma = searchParams.get("pravnaForma") || undefined;
-    const skNace = searchParams.get("skNace") || undefined;
-    const velkostOrganizacie = searchParams.get("velkostOrganizacie") || undefined;
+    const nazov = searchParams.get("search") || searchParams.get("nazov") || undefined;
+    const kraj = searchParams.get("region") || searchParams.get("kraj") || undefined;
+    const okres = searchParams.get("district") || searchParams.get("okres") || undefined;
+    const pravnaForma = searchParams.get("legal_form") || searchParams.get("pravnaForma") || undefined;
+    const skNace = searchParams.get("nace_code") || searchParams.get("skNace") || undefined;
+    const velkostOrganizacie = searchParams.get("size") || searchParams.get("velkostOrganizacie") || undefined;
 
     // Sorting
     const sortByParam = searchParams.get("sortBy") || "nazovUJ";
@@ -138,27 +134,31 @@ export async function GET(request: NextRequest) {
       queryCount(countSql, whereParams),
     ]);
 
-    // Transform raw database results to match original response format
+    // Transform raw database results to match frontend Entity type
     const entities = rawEntities.map((row) => ({
-      id: row.id,
-      ico: row.ico,
-      dic: row.dic,
-      nazovUJ: row.nazovUJ,
-      mesto: row.mesto,
-      psc: row.psc,
-      datumZalozenia: row.datumZalozenia,
-      datumZrusenia: row.datumZrusenia,
-      konsolidovana: row.konsolidovana,
-      datumPoslednejUpravy: row.datumPoslednejUpravy,
-      pravnaForma: row.pravnaForma_kod
-        ? { kod: row.pravnaForma_kod, nazov: row.pravnaForma_nazov }
-        : null,
-      skNace: row.skNace_kod ? { kod: row.skNace_kod, nazov: row.skNace_nazov } : null,
-      velkostOrganizacie: row.velkostOrganizacie_kod
-        ? { kod: row.velkostOrganizacie_kod, nazov: row.velkostOrganizacie_nazov }
-        : null,
-      kraj: row.kraj_kod ? { kod: row.kraj_kod, nazov: row.kraj_nazov } : null,
-      okres: row.okres_kod ? { kod: row.okres_kod, nazov: row.okres_nazov } : null,
+      id: String(row.id),
+      name: row.nazovUJ || "",
+      ico: row.ico || "",
+      dic: row.dic || "",
+      legal_form: row.pravnaForma_kod
+        ? getNazovSK(row.pravnaForma_nazov) || row.pravnaForma_kod
+        : "",
+      region: row.kraj_kod
+        ? getNazovSK(row.kraj_nazov) || row.kraj_kod
+        : "",
+      district: row.okres_kod
+        ? getNazovSK(row.okres_nazov) || row.okres_kod
+        : "",
+      municipality: row.mesto || "",
+      size: row.velkostOrganizacie_kod
+        ? getNazovSK(row.velkostOrganizacie_nazov) || row.velkostOrganizacie_kod
+        : "",
+      nace_code: row.skNace_kod
+        ? `${row.skNace_kod} - ${getNazovSK(row.skNace_nazov) || ""}`
+        : "",
+      nace_description: row.skNace_kod ? getNazovSK(row.skNace_nazov) || "" : "",
+      created_at: row.datumZalozenia ? String(row.datumZalozenia) : "",
+      psc: row.psc || "",
     }));
 
     const totalPages = Math.ceil(totalCount / limit);
@@ -166,14 +166,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         data: entities,
-        pagination: {
-          page,
-          limit,
-          total: totalCount,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1,
-        },
+        total: totalCount,
+        page,
+        limit,
+        pages: totalPages,
       },
       { status: 200 }
     );
