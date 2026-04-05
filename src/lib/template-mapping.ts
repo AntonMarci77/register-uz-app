@@ -888,20 +888,23 @@ export const TEMPLATE_INFO: Record<number, TemplateInfo> = {
       { name: "Výkaz ziskov a strát", type: "vzas", tableIndex: 2 },
     ],
   },
-  5181: {
-    id: 5181,
-    name: "Účtovná závierka bánk a pobočiek zahraničných bánk (2023)",
-    shortName: "Banky 2023",
-    description: "Nový formát závierky pre banky od 31.12.2023. Aktíva (28r), pasíva (23r), VZaS (24r) + počet zamestnancov.",
-    category: "banky",
-    previousVersionId: 1121,
-    tables: [
-      { name: "Aktíva", type: "aktiva", tableIndex: 0 },
-      { name: "Pasíva", type: "pasiva", tableIndex: 1 },
-      { name: "Výkaz ziskov a strát", type: "vzas", tableIndex: 2 },
-      { name: "Počet zamestnancov", type: "other", tableIndex: 3 },
-    ],
-  },
+  // TODO: Zistiť správne ID pre bankovú šablónu 2023 z registeruz.sk API
+  // Pôvodne bolo ID 5181, ale to koliduje s mikro ÚJ 2023 šablónou
+  // Po zistení správneho ID odkomentovať a nahradiť XXXX správnym číslom
+  // XXXX: {
+  //   id: XXXX,
+  //   name: "Účtovná závierka bánk a pobočiek zahraničných bánk (2023)",
+  //   shortName: "Banky 2023",
+  //   description: "Nový formát závierky pre banky od 31.12.2023. Aktíva (28r), pasíva (23r), VZaS (24r) + počet zamestnancov.",
+  //   category: "banky",
+  //   previousVersionId: 1121,
+  //   tables: [
+  //     { name: "Aktíva", type: "aktiva", tableIndex: 0 },
+  //     { name: "Pasíva", type: "pasiva", tableIndex: 1 },
+  //     { name: "Výkaz ziskov a strát", type: "vzas", tableIndex: 2 },
+  //     { name: "Počet zamestnancov", type: "other", tableIndex: 3 },
+  //   ],
+  // },
   941: {
     id: 941,
     name: "Účtovná závierka bánk a pobočiek zahraničných bánk (2015)",
