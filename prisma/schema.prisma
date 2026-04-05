@@ -1,0 +1,295 @@
+// Register účtovných závierok - Databázová schéma
+// Zdroj dát: https://www.registeruz.sk/cruz-public/home/api (RÚZ Open API v2.5)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ČÍSELNÍKY (Codebooks) — zo ŠÚSR
+// ============================================================
+
+model PravnaForma {
+  kod   String @id // kód právnej formy
+  nazov Json   // { "sk": "...", "en": "..." }
+
+  uctoJednotky AccountingEntity[]
+}
+
+model SkNace {
+  kod   String @id
+  nazov Json
+
+  uctoJednotky AccountingEntity[]
+}
+
+model DruhVlastnictva {
+  kod   String @id
+  nazov Json
+
+  uctoJednotky AccountingEntity[]
+}
+
+model VelkostOrganizacie {
+  kod   String @id
+  nazov Json
+
+  uctoJednotky AccountingEntity[]
+}
+
+model Kraj {
+  kod   String @id
+  nazov Json
+
+  uctoJednotky AccountingEntity[]
+  okresy       Okres[]
+}
+
+model Okres {
+  kod              String @id
+  nazov            Json
+  nadradenaLokacia String? // kód kraja
+
+  kraj         Kraj?              @relation(fields: [nadradenaLokacia], references: [kod])
+  uctoJednotky AccountingEntity[]
+}
+
+model Sidlo {
+  kod              String @id
+  nazov            Json
+  nadradenaLokacia String? // kód okresu
+
+  uctoJednotky AccountingEntity[]
+}
+
+// ============================================================
+// ÚČTOVNÁ JEDNOTKA (Accounting Entity)
+// ============================================================
+
+model AccountingEntity {
+  id                  Int       @id // id z API
+  ico                 String?   @db.VarChar(8)
+  dic                 String?   @db.VarChar(10)
+  sid                 String?   @db.VarChar(5)
+  nazovUJ             String?   @db.VarChar(500)
+  mesto               String?   @db.VarChar(200)
+  ulica               String?   @db.VarChar(200)
+  psc                 String?   @db.VarChar(10)
+  datumZalozenia      DateTime? @db.Date
+  datumZrusenia       DateTime? @db.Date
+  konsolidovana       Boolean   @default(false)
+  zdrojDat            String?   @db.VarChar(30)
+  datumPoslednejUpravy DateTime? @db.Date
+  zmazpiznakana       Boolean   @default(false) // príznak zmazanej entity
+
+  // Kódy číselníkov
+  pravnaFormaKod        String? @db.VarChar(100)
+  skNaceKod             String? @db.VarChar(100)
+  velkostOrganizacieKod String? @db.VarChar(100)
+  druhVlastnictvaKod    String? @db.VarChar(100)
+  krajKod               String? @db.VarChar(100)
+  okresKod              String? @db.VarChar(100)
+  sidloKod              String? @db.VarChar(100)
+
+  // Relácie na číselníky
+  pravnaForma        PravnaForma?        @relation(fields: [pravnaFormaKod], references: [kod])
+  skNace             SkNace?             @relation(fields: [skNaceKod], references: [kod])
+  velkostOrganizacie VelkostOrganizacie? @relation(fields: [velkostOrganizacieKod], references: [kod])
+  druhVlastnictva    DruhVlastnictva?    @relation(fields: [druhVlastnictvaKod], references: [kod])
+  kraj               Kraj?               @relation(fields: [krajKod], references: [kod])
+  okres              Okres?              @relation(fields: [okresKod], references: [kod])
+  sidlo              Sidlo?              @relation(fields: [sidloKod], references: [kod])
+
+  // Závierky a výročné správy
+  uctovneZavierky FinancialStatement[]
+  vyrocneSpravy   AnnualReport[]
+
+  // Indexy pre vyhľadávanie
+  @@index([ico])
+  @@index([dic])
+  @@index([nazovUJ])
+  @@index([krajKod])
+  @@index([okresKod])
+  @@index([pravnaFormaKod])
+  @@index([skNaceKod])
+  @@index([velkostOrganizacieKod])
+  @@index([datumPoslednejUpravy])
+}
+
+// ============================================================
+// ÚČTOVNÁ ZÁVIERKA (Financial Statement)
+// ============================================================
+
+model FinancialStatement {
+  id                  Int       @id // id z API
+  obdobieOd           String?   @db.VarChar(7) // RRRR-MM
+  obdobieDo           String?   @db.VarChar(7)
+  datumPodania        DateTime? @db.Date
+  datumZostavenia     DateTime? @db.Date
+  datumSchvalenia     DateTime? @db.Date
+  datumZostaveniaK    DateTime? @db.Date
+  datumPrilozeniaSpr  DateTime? @db.Date
+  nazovFondu          String?   @db.VarChar(500)
+  leiKod              String?   @db.VarChar(20)
+  konsolidovana       Boolean   @default(false)
+  konsolidovanaUstredna Boolean @default(false) // konsolidovanaZavierkaUstrednejStatnejSpravy
+  suhrnnaVerejnaSprava Boolean  @default(false) // suhrnnaUctovnaZavierkaVerejnejSpravy
+  typ                 String?   @db.VarChar(30) // Riadna, Mimoriadna, Priebežná, Kombinovaná
+  zdrojDat            String?   @db.VarChar(30)
+  datumPoslednejUpravy DateTime? @db.Date
+  zmazana             Boolean   @default(false)
+
+  // Relácia na účtovnú jednotku
+  idUJ                Int
+  uctoJednotka        AccountingEntity @relation(fields: [idUJ], references: [id])
+
+  // Účtovné výkazy
+  uctovneVykazy       FinancialReport[]
+
+  @@index([idUJ])
+  @@index([obdobieOd])
+  @@index([obdobieDo])
+  @@index([typ])
+  @@index([konsolidovana])
+  @@index([datumPoslednejUpravy])
+}
+
+// ============================================================
+// ÚČTOVNÝ VÝKAZ (Financial Report)
+// ============================================================
+
+model FinancialReport {
+  id                    Int     @id // id z API
+  idSablony             Int?    // identifikátor šablóny
+  mena                  String? @db.VarChar(9)
+  kodDanovehoUradu      String? @db.VarChar(3)
+  pristupnostDat        String? @db.VarChar(30) // Verejné, Verejné prílohy, Neverejné
+  zdrojDat              String? @db.VarChar(30)
+  datumPoslednejUpravy  DateTime? @db.Date
+  zmazany               Boolean @default(false)
+
+  // Titulná strana (vybrané kľúčové údaje - denormalizované pre rýchly prístup)
+  tsNazovUJ             String? @db.VarChar(500)
+  tsICO                 String? @db.VarChar(8)
+  tsPravnaForma         String? @db.VarChar(100)
+  tsSkNace              String? @db.VarChar(100)
+  tsTypZavierky         String? @db.VarChar(30)
+  tsKonsolidovana       Boolean @default(false)
+  tsTypUctovnejJednotky String? @db.VarChar(30) // malá, veľká
+  tsObdobieOd           String? @db.VarChar(7)
+  tsObdobieDo           String? @db.VarChar(7)
+  tsPredchObdobieOd     String? @db.VarChar(7)
+  tsPredchObdobieDo     String? @db.VarChar(7)
+
+  // Tabuľkové dáta (JSON — pole tabuliek s názvami a hodnotami)
+  tabulky               Json?   // [{nazov: "Súvaha", data: ["123", "456", ...]}, ...]
+
+  // Relácie
+  idUctovnejZavierky    Int?
+  idVyrocnejSpravy      Int?
+  uctovnaZavierka       FinancialStatement? @relation(fields: [idUctovnejZavierky], references: [id])
+  vyrocnaSprava         AnnualReport?       @relation(fields: [idVyrocnejSpravy], references: [id])
+  sablona               ReportTemplate?     @relation(fields: [idSablony], references: [id])
+
+  // Prílohy
+  prilohy               Attachment[]
+
+  @@index([idUctovnejZavierky])
+  @@index([idVyrocnejSpravy])
+  @@index([idSablony])
+  @@index([pristupnostDat])
+  @@index([datumPoslednejUpravy])
+}
+
+// ============================================================
+// VÝROČNÁ SPRÁVA (Annual Report)
+// ============================================================
+
+model AnnualReport {
+  id                   Int       @id
+  nazovUJ              String?   @db.VarChar(500)
+  typ                  String?   @db.VarChar(100) // Individuálna výročná správa, ...
+  nazovFondu           String?   @db.VarChar(500)
+  leiKod               String?   @db.VarChar(20)
+  obdobieOd            String?   @db.VarChar(7)
+  obdobieDo            String?   @db.VarChar(7)
+  datumPodania         DateTime? @db.Date
+  datumZostaveniaK     DateTime? @db.Date
+  pristupnostDat       String?   @db.VarChar(30)
+  rok                  Int?
+  zdrojDat             String?   @db.VarChar(30)
+  datumPoslednejUpravy DateTime? @db.Date
+  zmazana              Boolean   @default(false)
+
+  idUJ                 Int
+  uctoJednotka         AccountingEntity @relation(fields: [idUJ], references: [id])
+
+  uctovneVykazy        FinancialReport[]
+  prilohy              Attachment[]
+
+  @@index([idUJ])
+  @@index([obdobieOd])
+  @@index([rok])
+  @@index([datumPoslednejUpravy])
+}
+
+// ============================================================
+// ŠABLÓNA VÝKAZU (Report Template)
+// ============================================================
+
+model ReportTemplate {
+  id             Int       @id
+  nazov          String?   @db.VarChar(200)
+  nariadenieMF   String?   @db.VarChar(100)
+  platneOd       DateTime? @db.Date
+  platneDo       DateTime? @db.Date
+
+  // Štruktúra šablóny (hlavičky, riadky tabuliek) — uložené ako JSON
+  tabulky        Json?
+
+  uctovneVykazy  FinancialReport[]
+}
+
+// ============================================================
+// PRÍLOHA (Attachment)
+// ============================================================
+
+model Attachment {
+  id              Int     @id
+  meno            String? @db.VarChar(100)
+  mimeType        String? @db.VarChar(80)
+  velkostPrilohy  BigInt?
+  pocetStran      Int?
+  digest          String? @db.VarChar(64)
+  jazyk           String? @db.VarChar(3)
+
+  idFinancialReport Int?
+  idAnnualReport    Int?
+  financialReport   FinancialReport? @relation(fields: [idFinancialReport], references: [id])
+  annualReport      AnnualReport?    @relation(fields: [idAnnualReport], references: [id])
+
+  @@index([idFinancialReport])
+  @@index([idAnnualReport])
+}
+
+// ============================================================
+// SYNC METADATA — sledovanie synchronizácie
+// ============================================================
+
+model SyncLog {
+  id            Int      @id @default(autoincrement())
+  entityType    String   @db.VarChar(50) // uctovne-jednotky, uctovne-zavierky, ...
+  lastSyncDate  DateTime // posledný dátum úspešnej synchronizácie
+  lastId        Int?     // posledné spracované ID
+  totalSynced   Int      @default(0)
+  status        String   @db.VarChar(20) // running, completed, failed
+  error         String?
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+
+  @@index([entityType])
+}
