@@ -479,6 +479,14 @@ export async function syncFinancialStatements(sinceDate: string): Promise<{
   try {
     console.log(`[SYNC] Syncing financial statements since ${sinceDate}...`);
 
+    // Pre-load existing entity IDs to filter out statements with missing FK references
+    console.log(`[SYNC] Loading existing entity IDs for FK validation...`);
+    const entityIds = await prisma.$queryRawUnsafe<{ id: number }[]>(
+      `SELECT "id" FROM "AccountingEntity"`
+    );
+    const entityIdSet = new Set(entityIds.map((r) => r.id));
+    console.log(`[SYNC] Loaded ${entityIdSet.size} entity IDs for FK validation`);
+
     const ids = await getAllIds("uctovne-zavierky", sinceDate, (downloaded) => {
       console.log(`[SYNC] Downloaded ${downloaded} financial statement IDs...`);
     });
@@ -498,14 +506,31 @@ export async function syncFinancialStatements(sinceDate: string): Promise<{
       console.log(`[SYNC] Skipping ${ids.length - idsToFetch.length} existing statements, fetching ${idsToFetch.length} new`);
     }
 
+    // Wrap the processor to filter out statements with missing entity references
+    let skippedFk = 0;
+    const filteredProcessor = async (batch: FinancialStatementDetail[]) => {
+      const validBatch = batch.filter((d) => {
+        if (d.idUJ != null && entityIdSet.has(d.idUJ)) return true;
+        skippedFk++;
+        return false;
+      });
+      if (validBatch.length > 0) {
+        await bulkUpsertFinancialStatements(validBatch);
+      }
+    };
+
     const synced = await fetchAndProcessInBatches<FinancialStatementDetail>(
       idsToFetch,
       getFinancialStatement,
-      bulkUpsertFinancialStatements,
+      filteredProcessor,
       CONCURRENT_REQUESTS,
       DB_BATCH_SIZE,
       "Financial statements"
     );
+
+    if (skippedFk > 0) {
+      console.log(`[SYNC] Skipped ${skippedFk} statements with missing entity references`);
+    }
 
     return { synced };
   } catch (error) {
