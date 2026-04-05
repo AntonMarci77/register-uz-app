@@ -1,10 +1,9 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install && npx prisma generate && npm run build"
-nixpacksConfigPath = "nixpacks.toml"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npm run start"
+startCommand = "node server.js"
 healthcheckPath = "/api/db-size"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"

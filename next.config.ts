@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   typescript: {
     // V produkcii zachytávame chyby cez CI/CD
     ignoreBuildErrors: false,
