@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne, queryCount } from "@/lib/db-raw";
-import { runFullSync } from "@/lib/sync";
+import { runFullSync, runPhaseSync } from "@/lib/sync";
 
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/sync - Trigger a full sync in background
+ * POST /api/sync - Trigger sync in background
+ * Query params:
+ *   phase=statements|entities|reports|codebooks|templates|annual - Run specific phase only
+ *   (no phase param) - Run full sync (all 6 phases)
  * Returns immediately with status: "syncing"
  *
  * GET /api/sync - Get latest sync status
@@ -15,39 +18,63 @@ export const dynamic = "force-dynamic";
 // Track whether a sync is currently running (in-memory flag for this server instance)
 let isSyncing = false;
 let currentSyncError: string | null = null;
+let currentSyncPhase: string | null = null;
 
 export async function POST(request: NextRequest) {
   try {
     if (isSyncing) {
       return NextResponse.json(
-        { last_sync: null, total_records: 0, status: "syncing", error_message: null },
+        { last_sync: null, total_records: 0, status: "syncing", phase: currentSyncPhase, error_message: null },
         { status: 200 }
       );
     }
 
+    const phase = request.nextUrl.searchParams.get("phase");
+
     isSyncing = true;
     currentSyncError = null;
+    currentSyncPhase = phase || "full";
 
-    // Start background sync without awaiting — the POST returns immediately
-    runFullSync()
-      .then((result) => {
-        console.log("[SYNC] Full sync completed:", JSON.stringify(result, null, 2));
-        isSyncing = false;
-        currentSyncError = null;
-      })
-      .catch((err) => {
-        console.error("[SYNC] Full sync failed:", err);
-        isSyncing = false;
-        currentSyncError = err instanceof Error ? err.message : String(err);
-      });
+    if (phase) {
+      // Run specific phase only
+      runPhaseSync(phase)
+        .then((result) => {
+          console.log(`[SYNC] Phase '${phase}' completed:`, JSON.stringify(result, null, 2));
+          isSyncing = false;
+          currentSyncError = result.error || null;
+          currentSyncPhase = null;
+        })
+        .catch((err) => {
+          console.error(`[SYNC] Phase '${phase}' failed:`, err);
+          isSyncing = false;
+          currentSyncError = err instanceof Error ? err.message : String(err);
+          currentSyncPhase = null;
+        });
+    } else {
+      // Start full background sync without awaiting
+      runFullSync()
+        .then((result) => {
+          console.log("[SYNC] Full sync completed:", JSON.stringify(result, null, 2));
+          isSyncing = false;
+          currentSyncError = null;
+          currentSyncPhase = null;
+        })
+        .catch((err) => {
+          console.error("[SYNC] Full sync failed:", err);
+          isSyncing = false;
+          currentSyncError = err instanceof Error ? err.message : String(err);
+          currentSyncPhase = null;
+        });
+    }
 
     return NextResponse.json(
-      { last_sync: null, total_records: 0, status: "syncing", error_message: null },
+      { last_sync: null, total_records: 0, status: "syncing", phase: currentSyncPhase, error_message: null },
       { status: 202 }
     );
   } catch (error) {
     console.error("Sync trigger error:", error);
     isSyncing = false;
+    currentSyncPhase = null;
     return NextResponse.json(
       {
         last_sync: null,

@@ -860,3 +860,32 @@ export async function runFullSync(): Promise<SyncResult> {
     errors,
   };
 }
+
+/**
+ * Run a single sync phase by name.
+ * Supported phases: codebooks, templates, entities, statements, reports, annual
+ */
+export async function runPhaseSync(phase: string): Promise<{ synced: number; error?: string }> {
+  const startedAt = new Date();
+
+  console.log(`[SYNC] =============================================`);
+  console.log(`[SYNC] Running single phase: ${phase}`);
+  console.log(`[SYNC] =============================================`);
+
+  switch (phase) {
+    case "codebooks":
+      return syncCodebooks();
+    case "templates":
+      return syncTemplates();
+    case "entities":
+      return syncPhase("uctovne-jednotky", syncAccountingEntities, startedAt);
+    case "statements":
+      return syncPhase("uctovne-zavierky", syncFinancialStatements, startedAt);
+    case "reports":
+      return syncPhase("uctovne-vykazy", syncFinancialReports, startedAt);
+    case "annual":
+      return syncPhase("vyrocne-spravy", syncAnnualReports, startedAt);
+    default:
+      return { synced: 0, error: `Unknown phase: ${phase}. Valid phases: codebooks, templates, entities, statements, reports, annual` };
+  }
+}

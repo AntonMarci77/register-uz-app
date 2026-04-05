@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   try {
-    const [totalSize, tableSizes, counts] = await Promise.all([
+    const [totalSize, tableSizes, counts, sampleEntities, fieldStats] = await Promise.all([
       queryOne<{ total_size: string }>(
         "SELECT pg_size_pretty(pg_database_size(current_database())) as total_size"
       ),
@@ -32,6 +32,21 @@ export async function GET() {
           (SELECT COUNT(*) FROM "PravnaForma") as pravne_formy,
           (SELECT COUNT(*) FROM "SkNace") as sk_nace
       `),
+      queryRows(`
+        SELECT "pravnaFormaKod", "skNaceKod", "velkostOrganizacieKod", "krajKod", "okresKod"
+        FROM "AccountingEntity"
+        WHERE "pravnaFormaKod" IS NOT NULL OR "skNaceKod" IS NOT NULL OR "velkostOrganizacieKod" IS NOT NULL
+        LIMIT 5
+      `),
+      queryOne(`
+        SELECT
+          COUNT(*) FILTER (WHERE "pravnaFormaKod" IS NOT NULL AND "pravnaFormaKod" != '') as with_legal_form,
+          COUNT(*) FILTER (WHERE "skNaceKod" IS NOT NULL AND "skNaceKod" != '') as with_nace,
+          COUNT(*) FILTER (WHERE "velkostOrganizacieKod" IS NOT NULL AND "velkostOrganizacieKod" != '') as with_size,
+          COUNT(*) FILTER (WHERE "krajKod" IS NOT NULL AND "krajKod" != '') as with_region,
+          COUNT(*) as total
+        FROM "AccountingEntity"
+      `),
     ]);
 
     return NextResponse.json({
@@ -42,6 +57,8 @@ export async function GET() {
         bytes: parseInt(r.raw_bytes),
       })),
       row_counts: counts,
+      entity_field_stats: fieldStats,
+      sample_entities_with_codes: sampleEntities,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
