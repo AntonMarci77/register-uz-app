@@ -101,16 +101,16 @@ export async function GET(request: NextRequest) {
         e."datumZrusenia",
         e.konsolidovana,
         e."datumPoslednejUpravy",
-        pf.kod AS pravnaForma_kod,
-        pf.nazov AS pravnaForma_nazov,
-        sn.kod AS skNace_kod,
-        sn.nazov AS skNace_nazov,
-        vo.kod AS velkostOrganizacie_kod,
-        vo.nazov AS velkostOrganizacie_nazov,
-        k.kod AS kraj_kod,
-        k.nazov AS kraj_nazov,
-        o.kod AS okres_kod,
-        o.nazov AS okres_nazov
+        pf.kod AS "pravnaForma_kod",
+        pf.nazov AS "pravnaForma_nazov",
+        sn.kod AS "skNace_kod",
+        sn.nazov AS "skNace_nazov",
+        vo.kod AS "velkostOrganizacie_kod",
+        vo.nazov AS "velkostOrganizacie_nazov",
+        k.kod AS "kraj_kod",
+        k.nazov AS "kraj_nazov",
+        o.kod AS "okres_kod",
+        o.nazov AS "okres_nazov"
       FROM "AccountingEntity" e
       LEFT JOIN "PravnaForma" pf ON e."pravnaFormaKod" = pf.kod
       LEFT JOIN "SkNace" sn ON e."skNaceKod" = sn.kod
