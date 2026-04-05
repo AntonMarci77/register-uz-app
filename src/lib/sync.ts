@@ -343,10 +343,11 @@ function sqlJson(val: any): string {
 // ============================================================
 
 async function bulkUpsertAccountingEntities(batch: AccountingEntityDetail[]): Promise<void> {
-  if (batch.length === 0) return;
+  const validBatch = batch.filter((d) => d.id != null);
+  if (validBatch.length === 0) return;
 
-  const values = batch.map((d) =>
-    `(${d.id}, ${sqlStr(d.ico, 8)}, ${sqlStr(d.dic, 10)}, ${sqlStr(d.sid, 5)}, ${sqlStr(d.nazovUJ, 500)}, ${sqlStr(d.mesto, 200)}, ${sqlStr(d.ulica, 200)}, ${sqlStr(d.psc, 10)}, ${sqlDate(d.datumZalozenia)}, ${sqlDate(d.datumZrusenia)}, ${sqlBool(d.konsolidovana)}, ${sqlStr(d.zdrojDat, 30)}, ${sqlDate(d.datumPoslednejUpravy)}, ${sqlBool(d.zmazana)}, ${sqlStr(d.pravnaForma, 100)}, ${sqlStr(d.skNace, 100)}, ${sqlStr(d.velkostOrganizacie, 100)}, ${sqlStr(d.druhVlastnictva, 100)}, ${sqlStr(d.kraj, 100)}, ${sqlStr(d.okres, 100)}, ${sqlStr(d.sidlo, 100)})`
+  const values = validBatch.map((d) =>
+    `(${sqlInt(d.id)}, ${sqlStr(d.ico, 8)}, ${sqlStr(d.dic, 10)}, ${sqlStr(d.sid, 5)}, ${sqlStr(d.nazovUJ, 500)}, ${sqlStr(d.mesto, 200)}, ${sqlStr(d.ulica, 200)}, ${sqlStr(d.psc, 10)}, ${sqlDate(d.datumZalozenia)}, ${sqlDate(d.datumZrusenia)}, ${sqlBool(d.konsolidovana)}, ${sqlStr(d.zdrojDat, 30)}, ${sqlDate(d.datumPoslednejUpravy)}, ${sqlBool(d.zmazana)}, ${sqlStr(d.pravnaForma, 100)}, ${sqlStr(d.skNace, 100)}, ${sqlStr(d.velkostOrganizacie, 100)}, ${sqlStr(d.druhVlastnictva, 100)}, ${sqlStr(d.kraj, 100)}, ${sqlStr(d.okres, 100)}, ${sqlStr(d.sidlo, 100)})`
   ).join(",\n");
 
   const sql = `
@@ -431,11 +432,15 @@ export async function syncAccountingEntities(sinceDate: string): Promise<{
 // ============================================================
 
 async function bulkUpsertFinancialStatements(batch: FinancialStatementDetail[]): Promise<void> {
-  if (batch.length === 0) return;
+  // Filter out records without required fields
+  const validBatch = batch.filter((d) => d.id != null && d.idUJ != null);
+  if (validBatch.length === 0) return;
 
-  const values = batch.map((d) =>
-    `(${d.id}, ${sqlStr(d.obdobieOd, 7)}, ${sqlStr(d.obdobieDo, 7)}, ${sqlDate(d.datumPodania)}, ${sqlDate(d.datumZostavenia)}, ${sqlDate(d.datumSchvalenia)}, ${sqlDate(d.datumZostaveniaK)}, ${sqlDate(d.datumPrilozeniaSpr)}, ${sqlStr(d.nazovFondu, 500)}, ${sqlStr(d.leiKod, 20)}, ${d.idUJ}, ${sqlBool(d.konsolidovana)}, ${sqlBool(d.konsolidovanaZavierkaUstrednejStatnejSpravy)}, ${sqlBool(d.suhrnnaUctovnaZavierkaVerejnejSpravy)}, ${sqlStr(d.typ, 30)}, ${sqlStr(d.zdrojDat, 30)}, ${sqlDate(d.datumPoslednejUpravy)}, ${sqlBool(d.zmazana)})`
-  ).join(",\n");
+  const values = validBatch.map((d) => {
+    // Map API field names to our interface (API uses datumPrilozeniaSpravyAuditora)
+    const datumPrilozenia = (d as any).datumPrilozeniaSpravyAuditora || d.datumPrilozeniaSpr;
+    return `(${sqlInt(d.id)}, ${sqlStr(d.obdobieOd, 7)}, ${sqlStr(d.obdobieDo, 7)}, ${sqlDate(d.datumPodania)}, ${sqlDate(d.datumZostavenia)}, ${sqlDate(d.datumSchvalenia)}, ${sqlDate(d.datumZostaveniaK)}, ${sqlDate(datumPrilozenia)}, ${sqlStr(d.nazovFondu, 500)}, ${sqlStr(d.leiKod, 20)}, ${sqlInt(d.idUJ)}, ${sqlBool(d.konsolidovana)}, ${sqlBool(d.konsolidovanaZavierkaUstrednejStatnejSpravy)}, ${sqlBool(d.suhrnnaUctovnaZavierkaVerejnejSpravy)}, ${sqlStr(d.typ, 30)}, ${sqlStr(d.zdrojDat, 30)}, ${sqlDate(d.datumPoslednejUpravy)}, ${sqlBool(d.zmazana)})`;
+  }).join(",\n");
 
   const sql = `
     INSERT INTO "FinancialStatement" (
@@ -515,12 +520,13 @@ export async function syncFinancialStatements(sinceDate: string): Promise<{
 // ============================================================
 
 async function bulkUpsertFinancialReports(batch: FinancialReportDetail[]): Promise<void> {
-  if (batch.length === 0) return;
+  const validBatch = batch.filter((d) => d.id != null);
+  if (validBatch.length === 0) return;
 
-  const values = batch.map((d) => {
+  const values = validBatch.map((d) => {
     const tS = d.obsah?.titulnaStrana;
     const tabulky = d.obsah?.tabulky;
-    return `(${d.id}, ${sqlInt(d.idSablony)}, ${sqlStr(d.mena, 9)}, ${sqlStr(d.kodDanovehoUradu, 3)}, ${sqlStr(d.pristupnostDat, 30)}, ${sqlStr(d.zdrojDat, 30)}, ${sqlDate(d.datumPoslednejUpravy)}, ${sqlBool(d.zmazany)}, ${sqlInt(d.idUctovnejZavierky)}, ${sqlInt(d.idVyrocnejSpravy)}, ${sqlStr(tS?.nazovUctovnejJednotky, 500)}, ${sqlStr(tS?.ico, 8)}, ${sqlStr(tS?.pravnaForma, 100)}, ${sqlStr(tS?.skNace, 100)}, ${sqlStr(tS?.typZavierky, 30)}, ${sqlBool(tS?.konsolidovana)}, ${sqlStr(tS?.typUctovnejJednotky, 30)}, ${sqlStr(tS?.obdobieOd, 7)}, ${sqlStr(tS?.obdobieDo, 7)}, ${sqlStr(tS?.predchadzajuceObdobieOd, 7)}, ${sqlStr(tS?.predchadzajuceObdobieDo, 7)}, ${sqlJson(tabulky)})`;
+    return `(${sqlInt(d.id)}, ${sqlInt(d.idSablony)}, ${sqlStr(d.mena, 9)}, ${sqlStr(d.kodDanovehoUradu, 3)}, ${sqlStr(d.pristupnostDat, 30)}, ${sqlStr(d.zdrojDat, 30)}, ${sqlDate(d.datumPoslednejUpravy)}, ${sqlBool(d.zmazany)}, ${sqlInt(d.idUctovnejZavierky)}, ${sqlInt(d.idVyrocnejSpravy)}, ${sqlStr(tS?.nazovUctovnejJednotky, 500)}, ${sqlStr(tS?.ico, 8)}, ${sqlStr(tS?.pravnaForma, 100)}, ${sqlStr(tS?.skNace, 100)}, ${sqlStr(tS?.typZavierky, 30)}, ${sqlBool(tS?.konsolidovana)}, ${sqlStr(tS?.typUctovnejJednotky, 30)}, ${sqlStr(tS?.obdobieOd, 7)}, ${sqlStr(tS?.obdobieDo, 7)}, ${sqlStr(tS?.predchadzajuceObdobieOd, 7)}, ${sqlStr(tS?.predchadzajuceObdobieDo, 7)}, ${sqlJson(tabulky)})`;
   }).join(",\n");
 
   const sql = `
@@ -633,10 +639,11 @@ export async function syncFinancialReports(sinceDate: string): Promise<{
 // ============================================================
 
 async function bulkUpsertAnnualReports(batch: AnnualReportDetail[]): Promise<void> {
-  if (batch.length === 0) return;
+  const validBatch = batch.filter((d) => d.id != null);
+  if (validBatch.length === 0) return;
 
-  const values = batch.map((d) =>
-    `(${d.id}, ${sqlStr(d.nazovUJ, 500)}, ${sqlStr(d.typ, 100)}, ${sqlStr(d.nazovFondu, 500)}, ${sqlStr(d.leiKod, 20)}, ${sqlStr(d.obdobieOd, 7)}, ${sqlStr(d.obdobieDo, 7)}, ${sqlDate(d.datumPodania)}, ${sqlDate(d.datumZostaveniaK)}, ${sqlStr(d.pristupnostDat, 30)}, ${sqlInt(d.rok)}, ${d.idUJ}, ${sqlStr(d.zdrojDat, 30)}, ${sqlDate(d.datumPoslednejUpravy)}, ${sqlBool(d.zmazana)})`
+  const values = validBatch.map((d) =>
+    `(${sqlInt(d.id)}, ${sqlStr(d.nazovUJ, 500)}, ${sqlStr(d.typ, 100)}, ${sqlStr(d.nazovFondu, 500)}, ${sqlStr(d.leiKod, 20)}, ${sqlStr(d.obdobieOd, 7)}, ${sqlStr(d.obdobieDo, 7)}, ${sqlDate(d.datumPodania)}, ${sqlDate(d.datumZostaveniaK)}, ${sqlStr(d.pristupnostDat, 30)}, ${sqlInt(d.rok)}, ${sqlInt(d.idUJ)}, ${sqlStr(d.zdrojDat, 30)}, ${sqlDate(d.datumPoslednejUpravy)}, ${sqlBool(d.zmazana)})`
   ).join(",\n");
 
   const sql = `
