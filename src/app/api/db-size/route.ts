@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   try {
-    const [totalSize, tableSizes, counts, sampleEntities, fieldStats] = await Promise.all([
+    const [totalSize, tableSizes, counts, sampleEntities, fieldStats, reportStats] = await Promise.all([
       queryOne<{ total_size: string }>(
         "SELECT pg_size_pretty(pg_database_size(current_database())) as total_size"
       ),
@@ -47,6 +47,17 @@ export async function GET() {
           COUNT(*) as total
         FROM "AccountingEntity"
       `),
+      queryOne(`
+        SELECT
+          COUNT(*) as total_reports,
+          COUNT(*) FILTER (WHERE tabulky IS NOT NULL) as with_tabulky,
+          COUNT(*) FILTER (WHERE tabulky IS NOT NULL AND tabulky::text != '{}' AND tabulky::text != 'null' AND tabulky::text != '[]') as with_tabulky_data,
+          COUNT(*) FILTER (WHERE "tsNazovUJ" IS NOT NULL AND "tsNazovUJ" != '') as with_name,
+          COUNT(*) FILTER (WHERE "tsICO" IS NOT NULL AND "tsICO" != '') as with_ico,
+          COUNT(*) FILTER (WHERE "tsTypZavierky" IS NOT NULL) as with_type,
+          COUNT(*) FILTER (WHERE zmazany = false) as not_deleted
+        FROM "FinancialReport"
+      `),
     ]);
 
     return NextResponse.json({
@@ -58,6 +69,7 @@ export async function GET() {
       })),
       row_counts: counts,
       entity_field_stats: fieldStats,
+      report_stats: reportStats,
       sample_entities_with_codes: sampleEntities,
       timestamp: new Date().toISOString(),
     });
