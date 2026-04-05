@@ -315,6 +315,7 @@ function sqlDate(dateStr: string | undefined | null): string {
 }
 
 function sqlBool(val: boolean | undefined | null): string {
+  if (val === undefined || val === null) return "NULL";
   return val ? "TRUE" : "FALSE";
 }
 
@@ -952,17 +953,36 @@ export async function backfillReportContent(
 
     // 3. Build individual UPDATE statements and execute in transaction
     const updateSqls: string[] = [];
+    let chunkFailed = 0;
+    let chunkNoContent = 0;
     for (const result of results) {
       processed++;
       if (result.status !== "fulfilled") {
         failed++;
+        chunkFailed++;
+        // Log first few failures for diagnostics
+        if (failed <= 5) {
+          console.error(`[BACKFILL] API call failed:`, result.reason?.message || result.reason);
+        }
         continue;
       }
 
       const d = result.value;
       if (!d || d.id == null) {
         failed++;
+        chunkFailed++;
         continue;
+      }
+
+      // Log first successful response structure for diagnostics
+      if (processed <= 3) {
+        const hasObsah = !!d.obsah;
+        const hasTS = !!d.obsah?.titulnaStrana;
+        const hasTabulky = !!(d.obsah?.tabulky && d.obsah.tabulky.length > 0);
+        console.log(`[BACKFILL] Report ${d.id}: obsah=${hasObsah}, titulnaStrana=${hasTS}, tabulky=${hasTabulky}, keys=${Object.keys(d).join(",")}`);
+        if (hasTS) {
+          console.log(`[BACKFILL] Report ${d.id} titulnaStrana: ico=${d.obsah!.titulnaStrana!.ico}, nazov=${d.obsah!.titulnaStrana!.nazovUctovnejJednotky?.substring(0, 50)}`);
+        }
       }
 
       const tS = d.obsah?.titulnaStrana;
@@ -988,7 +1008,16 @@ export async function backfillReportContent(
         WHERE id = ${sqlInt(d.id)}
       `);
 
-      if (hasContent) updated++;
+      if (hasContent) {
+        updated++;
+      } else {
+        chunkNoContent++;
+      }
+    }
+
+    // Log chunk diagnostics
+    if (i === 0 || (i / concurrency) % 10 === 0) {
+      console.log(`[BACKFILL] Chunk ${i / concurrency}: ${updateSqls.length} updates, ${chunkFailed} failed, ${chunkNoContent} without content`);
     }
 
     // 4. Execute all updates in a single transaction for efficiency
