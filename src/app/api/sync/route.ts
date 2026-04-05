@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne, queryCount } from "@/lib/db-raw";
-import { runFullSync, runPhaseSync } from "@/lib/sync";
+import { runFullSync, runPhaseSync, backfillReportContent } from "@/lib/sync";
 
 export const dynamic = "force-dynamic";
 
