@@ -15,8 +15,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Zabezpečenie, že pg a prisma sú externé (nie bundlované)
-  serverExternalPackages: ["pg", "@prisma/client", "@prisma/adapter-pg", "prisma"],
   // Experimentálne: serverActions pre sync
   experimental: {
     serverActions: {
