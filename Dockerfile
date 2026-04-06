@@ -38,11 +38,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy prisma for potential sync usage
+# Copy only the generated Prisma client (needed at runtime for DB queries)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/prisma ./prisma
 
 USER nextjs
 
@@ -51,5 +49,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Run prisma db push (creates/updates tables) then start server
-CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --skip-generate 2>&1 || echo 'Prisma push skipped'; node server.js"]
+CMD ["node", "server.js"]
