@@ -314,8 +314,8 @@ function sqlDate(dateStr: string | undefined | null): string {
   }
 }
 
-function sqlBool(val: boolean | undefined | null): string {
-  if (val === undefined || val === null) return "NULL";
+function sqlBool(val: boolean | undefined | null, defaultVal: boolean = false): string {
+  if (val === undefined || val === null) return defaultVal ? "TRUE" : "FALSE";
   return val ? "TRUE" : "FALSE";
 }
 
